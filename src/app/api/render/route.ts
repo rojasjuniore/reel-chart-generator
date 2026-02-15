@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 // For cloud deployments (Railway/Vercel), use Remotion Lambda or local CLI rendering.
 // This MVP uses client-side preview only.
 
-export async function POST(request: NextRequest) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function POST(_request: NextRequest) {
   return NextResponse.json(
     {
       error: 'Server-side render not available',
