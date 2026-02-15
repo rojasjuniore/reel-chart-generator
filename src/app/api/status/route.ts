@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getQueueStatus } from '../render/route';
+import { getQueueStatus } from '@/lib/render-queue';
 
 export async function GET() {
   const queue = getQueueStatus();

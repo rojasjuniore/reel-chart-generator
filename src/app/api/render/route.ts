@@ -3,6 +3,7 @@ import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { acquireRenderLock, releaseRenderLock, getQueueStatus } from '@/lib/render-queue';
 
 // Video specs
 const FPS = 30;
@@ -14,49 +15,6 @@ const HEIGHT = 1920;
 const RENDER_TIMEOUT_MS = 120_000; // 120 seconds hard timeout
 const MAX_BODY_SIZE = 1_000_000; // 1MB
 const MAX_DATA_POINTS = 500; // reasonable limit
-
-// Concurrency control (simple in-memory lock)
-let isRendering = false;
-const renderQueue: Array<() => void> = [];
-const MAX_QUEUE_SIZE = 3; // Backpressure: reject if queue > 3
-
-// Get current queue status
-export function getQueueStatus() {
-  return {
-    isRendering,
-    queueLength: renderQueue.length,
-    maxQueue: MAX_QUEUE_SIZE,
-  };
-}
-
-async function acquireRenderLock(): Promise<'acquired' | 'rejected'> {
-  if (!isRendering) {
-    isRendering = true;
-    return 'acquired';
-  }
-  
-  // Backpressure: reject if queue is full
-  if (renderQueue.length >= MAX_QUEUE_SIZE) {
-    return 'rejected';
-  }
-  
-  // Wait in queue
-  return new Promise((resolve) => {
-    renderQueue.push(() => {
-      isRendering = true;
-      resolve('acquired');
-    });
-  });
-}
-
-function releaseRenderLock(): void {
-  if (renderQueue.length > 0) {
-    const next = renderQueue.shift();
-    next?.();
-  } else {
-    isRendering = false;
-  }
-}
 
 export async function POST(request: NextRequest) {
   const requestId = Date.now().toString(36);
@@ -97,16 +55,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Acquire render lock (wait if another render is in progress)
-    console.log(`[${requestId}] ⏳ Waiting for render lock... (queue: ${renderQueue.length})`);
+    const queueBefore = getQueueStatus();
+    console.log(`[${requestId}] ⏳ Waiting for render lock... (queue: ${queueBefore.queueLength})`);
     const lockResult = await acquireRenderLock();
     
     if (lockResult === 'rejected') {
+      const queueInfo = getQueueStatus();
       console.log(`[${requestId}] ❌ Queue full, rejecting request`);
       return NextResponse.json(
         { 
           error: 'Server busy', 
           details: 'Too many renders in queue. Try again later.',
-          queueLength: renderQueue.length,
+          queueLength: queueInfo.queueLength,
         },
         { status: 429 }
       );
