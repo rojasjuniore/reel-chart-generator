@@ -1,5 +1,10 @@
 # Reel Chart Generator - Limits & Specs
 
+## Deployment
+- **UI + Preview:** https://reel-chart-generator.vercel.app
+- **Server-side render:** Not available (requires Remotion Lambda or local CLI)
+- **GitHub:** https://github.com/rojasjuniore/reel-chart-generator
+
 ## Video Output
 - **Resolution:** 1080x1920 (9:16 vertical)
 - **FPS:** 30
