@@ -179,6 +179,36 @@ export const ChartComposition: React.FC<ChartCompositionProps> = ({
     if (dotA && dotB) break;
   }
 
+  // Time cursor position (moves with stroke progress)
+  const cursorX = CHART_AREA.x + strokeProgress * CHART_AREA.width;
+  
+  // Current date/year label (extracts year from date string)
+  const currentDataPoint = data[Math.max(0, currentIdx)];
+  const currentDateStr = currentDataPoint?.date || '';
+  // Extract year (handles formats like "2024-01", "2024", "Jan 2024", etc.)
+  const yearMatch = currentDateStr.match(/\d{4}/);
+  const currentYear = yearMatch ? yearMatch[0] : currentDateStr;
+  
+  // Generate X-axis ticks (unique years/dates, evenly spaced)
+  const xAxisTicks = data.map((d, i) => {
+    const x = CHART_AREA.x + (i / Math.max(data.length - 1, 1)) * CHART_AREA.width;
+    const yearM = d.date.match(/\d{4}/);
+    const label = yearM ? yearM[0] : d.date;
+    // Calculate opacity based on cursor position
+    const tickProgress = i / Math.max(data.length - 1, 1);
+    const opacity = interpolate(
+      strokeProgress,
+      [tickProgress - 0.05, tickProgress + 0.05],
+      [0, 1],
+      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+    );
+    return { x, label, opacity, index: i };
+  });
+  
+  // Filter to show only every Nth tick to avoid crowding
+  const tickInterval = Math.max(1, Math.ceil(data.length / 8));
+  const visibleTicks = xAxisTicks.filter((_, i) => i % tickInterval === 0 || i === data.length - 1);
+
   // Highlight animation (starts at freeze)
   const highlightOpacity = interpolate(
     frame,
@@ -268,6 +298,56 @@ export const ChartComposition: React.FC<ChartCompositionProps> = ({
           />
         ))}
 
+        {/* X-axis line */}
+        <line
+          x1={CHART_AREA.x}
+          y1={CHART_AREA.y + CHART_AREA.height}
+          x2={CHART_AREA.x + CHART_AREA.width}
+          y2={CHART_AREA.y + CHART_AREA.height}
+          stroke="#9CA3AF"
+          strokeWidth={2}
+        />
+
+        {/* X-axis ticks with gradual opacity */}
+        {visibleTicks.map((tick) => (
+          <g key={tick.index} opacity={tick.opacity}>
+            {/* Tick mark */}
+            <line
+              x1={tick.x}
+              y1={CHART_AREA.y + CHART_AREA.height}
+              x2={tick.x}
+              y2={CHART_AREA.y + CHART_AREA.height + 10}
+              stroke="#6B7280"
+              strokeWidth={2}
+            />
+            {/* Tick label */}
+            <text
+              x={tick.x}
+              y={CHART_AREA.y + CHART_AREA.height + 35}
+              textAnchor="middle"
+              fill="#6B7280"
+              fontSize={20}
+              fontFamily="Inter, system-ui, sans-serif"
+            >
+              {tick.label}
+            </text>
+          </g>
+        ))}
+
+        {/* Time cursor (vertical line that moves with progress) */}
+        {frame >= hookEnd && frame < freezeStart && (
+          <line
+            x1={cursorX}
+            y1={CHART_AREA.y}
+            x2={cursorX}
+            y2={CHART_AREA.y + CHART_AREA.height}
+            stroke={COLORS.goldAccent}
+            strokeWidth={3}
+            strokeDasharray="8,4"
+            opacity={0.7}
+          />
+        )}
+
         {/* Line A (Blue) - multiple segments for gaps */}
         {visibleSegmentsA.map((segment, i) => (
           <path
@@ -336,6 +416,35 @@ export const ChartComposition: React.FC<ChartCompositionProps> = ({
           />
         )}
       </svg>
+
+      {/* Current Year Display (animated, centered below chart) */}
+      {frame >= hookEnd && frame < freezeStart && (
+        <div
+          style={{
+            position: 'absolute',
+            top: CHART_AREA.y + CHART_AREA.height + 60,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: COLORS.darkNavy,
+              color: COLORS.offWhite,
+              padding: '12px 32px',
+              borderRadius: 12,
+              fontFamily: 'Inter, system-ui, sans-serif',
+              fontSize: 36,
+              fontWeight: 700,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            }}
+          >
+            {currentYear}
+          </div>
+        </div>
+      )}
 
       {/* Legend */}
       <div
