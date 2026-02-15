@@ -9,6 +9,9 @@ interface ChartPreviewProps {
   compositionProps: ChartCompositionProps;
   onExport: () => void;
   isExporting: boolean;
+  exportProgress?: number;
+  exportStatus?: string;
+  downloadUrl?: string | null;
 }
 
 // Reel dimensions: 1080x1920 (9:16)
@@ -17,7 +20,14 @@ const REEL_HEIGHT = 1920;
 const FPS = 30;
 const DURATION_SECONDS = 15;
 
-export function ChartPreview({ compositionProps, onExport, isExporting }: ChartPreviewProps) {
+export function ChartPreview({ 
+  compositionProps, 
+  onExport, 
+  isExporting,
+  exportProgress = 0,
+  exportStatus = '',
+  downloadUrl = null,
+}: ChartPreviewProps) {
   // Scale for preview (fit in UI)
   const previewScale = 0.25;
   const previewWidth = REEL_WIDTH * previewScale;
@@ -84,14 +94,36 @@ export function ChartPreview({ compositionProps, onExport, isExporting }: ChartP
         </div>
 
         {isExporting && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center justify-center gap-2 mb-3">
               <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              <p className="text-blue-700 font-medium">Rendering video...</p>
+              <p className="text-blue-700 font-medium">
+                {exportStatus || 'Rendering video...'}
+              </p>
             </div>
-            <p className="text-blue-600 text-sm">
-              This may take 30-60 seconds. Please wait...
+            {/* Progress bar */}
+            <div className="w-full bg-blue-200 rounded-full h-3 mb-2">
+              <div 
+                className="bg-blue-500 h-3 rounded-full transition-all duration-300"
+                style={{ width: `${exportProgress}%` }}
+              />
+            </div>
+            <p className="text-blue-600 text-sm text-center">
+              {exportProgress}% complete
             </p>
+          </div>
+        )}
+
+        {downloadUrl && !isExporting && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+            <p className="text-green-700 font-medium mb-2">✅ Export complete!</p>
+            <a 
+              href={downloadUrl}
+              download
+              className="inline-block bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium"
+            >
+              📥 Download MP4
+            </a>
           </div>
         )}
       </CardContent>

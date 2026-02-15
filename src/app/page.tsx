@@ -23,6 +23,9 @@ export default function Home() {
   const [textConfig, setTextConfig] = useState<TextConfig | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState<number>(0);
+  const [exportStatus, setExportStatus] = useState<string>('');
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const handleDataParsed = useCallback((data: ParsedCSV) => {
@@ -62,13 +65,15 @@ export default function Home() {
     if (!textConfig || chartData.length === 0) return;
     
     setIsExporting(true);
+    setExportProgress(0);
+    setExportStatus('Starting export...');
+    setDownloadUrl(null);
     
     try {
-      const response = await fetch('/api/render', {
+      // Start Lambda render
+      const startResponse = await fetch('/api/export', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: chartData,
           labelA: textConfig.labelA,
@@ -79,32 +84,67 @@ export default function Home() {
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || errorData.error || 'Export failed');
+      const startData = await startResponse.json();
+      
+      if (!startResponse.ok) {
+        // Check if it's a configuration issue
+        if (startData.configured === false) {
+          throw new Error('Cloud export not configured. Contact administrator.');
+        }
+        throw new Error(startData.details || startData.error || 'Export failed');
       }
 
-      // Get the video blob
-      const blob = await response.blob();
-      
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
-      // Generate filename: {labelA}_vs_{labelB}_{YYYYMMDD}.mp4
-      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
-      const filename = `${textConfig.labelA}_vs_${textConfig.labelB}_${dateStr}.mp4`
-        .replace(/[^a-zA-Z0-9_.-]/g, '_');
-      a.download = filename;
-      
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      const { renderId, bucketName } = startData;
+      setExportStatus('Rendering in cloud...');
+
+      // Poll for progress
+      let done = false;
+      let attempts = 0;
+      const maxAttempts = 120; // 2 minutes max (1 poll per second)
+
+      while (!done && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts++;
+
+        const statusResponse = await fetch(
+          `/api/status?renderId=${renderId}&bucketName=${bucketName}`
+        );
+        const statusData = await statusResponse.json();
+
+        if (statusData.status === 'error') {
+          throw new Error(statusData.error || 'Render failed');
+        }
+
+        if (statusData.status === 'done') {
+          done = true;
+          setExportProgress(100);
+          setExportStatus('Download ready!');
+          setDownloadUrl(statusData.downloadUrl);
+          
+          // Auto-trigger download
+          if (statusData.downloadUrl) {
+            const a = document.createElement('a');
+            a.href = statusData.downloadUrl;
+            a.download = `${textConfig.labelA}_vs_${textConfig.labelB}.mp4`.replace(/[^a-zA-Z0-9_.-]/g, '_');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }
+        } else {
+          // Update progress
+          const progress = Math.round((statusData.progress || 0) * 100);
+          setExportProgress(progress);
+          setExportStatus(`Rendering: ${progress}% (${statusData.framesRendered || 0}/${statusData.totalFrames || 450} frames)`);
+        }
+      }
+
+      if (!done) {
+        throw new Error('Export timed out. Please try again.');
+      }
       
     } catch (error) {
       console.error('Export error:', error);
+      setExportStatus('');
       alert(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsExporting(false);
@@ -232,6 +272,9 @@ export default function Home() {
                 }}
                 onExport={handleExport}
                 isExporting={isExporting}
+                exportProgress={exportProgress}
+                exportStatus={exportStatus}
+                downloadUrl={downloadUrl}
               />
               <div className="flex gap-4">
                 <button
