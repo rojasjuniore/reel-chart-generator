@@ -2,6 +2,8 @@
 
 import {
   AbsoluteFill,
+  Img,
+  staticFile,
   interpolate,
   useCurrentFrame,
   useVideoConfig,
@@ -28,19 +30,22 @@ export interface ChartCompositionProps {
   highlightIndex: number;
 }
 
-// Chart dimensions with 10% padding for Reels UI
+// Chart dimensions with safe margins for Reels UI + branding
 const PADDING = {
-  top: 192, // 10% of 1920
-  bottom: 192,
+  top: 192, // 10% of 1920 for Reels UI
+  bottom: 280, // Extra space for logo + Reels UI
   left: 80,
   right: 80,
 };
+
+// Brand strip height (logo area)
+const BRAND_STRIP_HEIGHT = 120;
 
 const CHART_AREA = {
   x: PADDING.left,
   y: PADDING.top + 180, // Space for hook text
   width: 1080 - PADDING.left - PADDING.right,
-  height: 1920 - PADDING.top - PADDING.bottom - 360, // Space for hook + takeaway
+  height: 1920 - PADDING.top - PADDING.bottom - 360 - BRAND_STRIP_HEIGHT, // Space for hook + takeaway + logo
 };
 
 function getMinMax(data: ChartDataPoint[]): { min: number; max: number } {
@@ -504,7 +509,7 @@ export const ChartComposition: React.FC<ChartCompositionProps> = ({
         <div
           style={{
             position: 'absolute',
-            bottom: PADDING.bottom + 200,
+            bottom: PADDING.bottom + BRAND_STRIP_HEIGHT + 180,
             left: PADDING.left,
             right: PADDING.right,
             display: 'flex',
@@ -563,7 +568,7 @@ export const ChartComposition: React.FC<ChartCompositionProps> = ({
         <div
           style={{
             position: 'absolute',
-            bottom: PADDING.bottom + 40,
+            bottom: PADDING.bottom + BRAND_STRIP_HEIGHT + 20,
             left: PADDING.left,
             right: PADDING.right,
             opacity: takeawayOpacity,
@@ -582,6 +587,25 @@ export const ChartComposition: React.FC<ChartCompositionProps> = ({
           </p>
         </div>
       )}
+
+      {/* Brand Footer Logo - Lending Spot */}
+      <AbsoluteFill
+        style={{
+          justifyContent: 'flex-end',
+          alignItems: 'center',
+          paddingBottom: 140, // Safe area above Reels UI
+          pointerEvents: 'none',
+        }}
+      >
+        <Img
+          src={staticFile('branding/lending-spot-logo.png')}
+          style={{
+            height: 58,
+            width: 'auto',
+            opacity: 0.92,
+          }}
+        />
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };
